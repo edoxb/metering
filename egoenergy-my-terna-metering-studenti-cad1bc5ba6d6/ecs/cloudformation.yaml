@@ -1,0 +1,289 @@
+Description: This template deploys test task on Fargate
+Parameters:
+  EnvironmentName:
+    AllowedValues:
+      - prod
+      - staging
+    Type: String
+  ServiceName:
+    Type: String
+  AccountId:
+    Type: String
+  DefaultRegion:
+    Type: String
+  ImageName:
+    Type: String
+  ImageTag:
+    Type: String
+  DestinationBucket:
+    Type: String
+  DownloadPath:
+    Type: String
+    Default: /tmp/measures
+Conditions:
+  EnableProdScheduleRule: !Equals [!Ref EnvironmentName, prod]
+Resources:
+  CloudWatchLogsGroup:
+    Properties:
+      LogGroupName: !Sub /fargate/${EnvironmentName}/my-terna-metering
+      RetentionInDays: 7
+    Type: AWS::Logs::LogGroup
+  MetricFilter:
+    DependsOn: CloudWatchLogsGroup
+    Properties:
+      FilterPattern: ?ERROR ?Error ?error
+      LogGroupName: !Ref 'CloudWatchLogsGroup'
+      MetricTransformations:
+        - DefaultValue: 0.0
+          MetricName: my-terna-meteringFilter
+          MetricNamespace: !Sub '${EnvironmentName}/fargate/'
+          MetricValue: '1'
+    Type: AWS::Logs::MetricFilter
+  MetricFilterAlarm:
+    Properties:
+      AlarmActions:
+        - !Sub 'arn:aws:sns:eu-west-1:863181445948:${EnvironmentName}-alarmNotificationTopic'
+      AlarmDescription: !Sub 'An error occurred in job my-terna-metering in Fargate ${EnvironmentName}
+        environment'
+      AlarmName: !Sub ${EnvironmentName}-my-terna-metering-logs-error-alarm
+      ComparisonOperator: GreaterThanThreshold
+      EvaluationPeriods: 1
+      MetricName: my-terna-metering-logs-error
+      Namespace: !Sub '${EnvironmentName}/fargate/'
+      Period: 86400
+      Statistic: Average
+      Threshold: 0
+    Type: AWS::CloudWatch::Alarm
+  ScheduledRuleMonthRun:
+    DependsOn:
+      - TaskRole
+      - TaskDefinition
+    Properties:
+      Description: !Sub 'ScheduledRule for task my-terna-metering in Fargate ${EnvironmentName}
+        environment'
+      ScheduleExpression: cron(0 7 15,17,19,21,23,25,27,30 * ? *)
+      State: !If [EnableProdScheduleRule, ENABLED, DISABLED]
+      Targets:
+        - Arn: !Sub 'arn:aws:ecs:eu-west-1:863181445948:cluster/fargate-${EnvironmentName}'
+          EcsParameters:
+            LaunchType: FARGATE
+            NetworkConfiguration:
+              AwsVpcConfiguration:
+                AssignPublicIp: DISABLED
+                SecurityGroups:
+                  - sg-013ba8c102109773e
+                Subnets:
+                  - subnet-060126506e400d7cb
+                  - subnet-06144cb1fe1dbd38b
+                  - subnet-0a302591beab0099d
+            TaskCount: 1
+            TaskDefinitionArn: !Ref 'TaskDefinition'
+          Id: !Sub '${EnvironmentName}-fargate-my-terna-metering-ScheduledRule'
+          RoleArn: !GetAtt 'TaskRole.Arn'
+          Input: !Sub '{"containerOverrides": [{"name": "${EnvironmentName}-my-terna-metering", "environment": [{"name":"ENVIRONMENT", "value": "${EnvironmentName}"}, {"name":"SERVICE_NAME", "value": "${ServiceName}"}, {"name":"AWS_DEFAULT_REGION", "value": "eu-west-1"}, {"name":"DESTINATION_BUCKET",  "value": "ego-metering-tso-863181445948-eu-west-1"}, {"name":"DOWNLOAD_PATH",   "value": "/tmp/measures"}, {"name":"QUEUE_NAME",   "value": ""}, {"name":"HISTORICAL",   "value": "False"}, {"name":"COMPANIES",   "value": "EGO DATA, EGO Energy"}       ]     }   ] }'
+    Type: AWS::Events::Rule
+  ScheduledRuleHistoricEgoDataRelevant:
+    DependsOn:
+      - TaskRole
+      - TaskDefinition
+    Properties:
+      Description: !Sub 'ScheduledRule for task my-terna-metering in Fargate ${EnvironmentName}
+        environment'
+      ScheduleExpression: cron(0 15 * * ? *)
+      State: !If [EnableProdScheduleRule, ENABLED, DISABLED]
+      Targets:
+        - Arn: !Sub 'arn:aws:ecs:eu-west-1:863181445948:cluster/fargate-${EnvironmentName}'
+          EcsParameters:
+            LaunchType: FARGATE
+            NetworkConfiguration:
+              AwsVpcConfiguration:
+                AssignPublicIp: DISABLED
+                SecurityGroups:
+                  - sg-013ba8c102109773e
+                Subnets:
+                  - subnet-060126506e400d7cb
+                  - subnet-06144cb1fe1dbd38b
+                  - subnet-0a302591beab0099d
+            TaskCount: 1
+            TaskDefinitionArn: !Ref 'TaskDefinition'
+          Id: !Sub '${EnvironmentName}-fargate-my-terna-metering-ScheduledRule'
+          RoleArn: !GetAtt 'TaskRole.Arn'
+          Input: !Sub '{"containerOverrides": [{"name": "${EnvironmentName}-my-terna-metering", "environment": [{"name":"ENVIRONMENT", "value": "${EnvironmentName}"}, {"name":"SERVICE_NAME", "value": "${ServiceName}"}, {"name":"AWS_DEFAULT_REGION", "value": "eu-west-1"}, {"name":"DESTINATION_BUCKET",  "value": "ego-metering-tso-863181445948-eu-west-1"}, {"name":"DOWNLOAD_PATH",   "value": "/tmp/measures"}, {"name":"QUEUE_NAME",   "value": ""}, {"name":"HISTORICAL",   "value": "True"}, {"name":"COMPANIES",   "value": "EGO DATA"}, {"name":"RELEVANT",   "value": "True"}       ]     }   ] }'
+    Type: AWS::Events::Rule
+  ScheduledRuleHistoricEgoDataUnrelevant:
+    DependsOn:
+      - TaskRole
+      - TaskDefinition
+    Properties:
+      Description: !Sub 'ScheduledRule for task my-terna-metering in Fargate ${EnvironmentName}
+        environment'
+      ScheduleExpression: cron(0 13 * * ? *)
+      State: !If [EnableProdScheduleRule, ENABLED, DISABLED]
+      Targets:
+        - Arn: !Sub 'arn:aws:ecs:eu-west-1:863181445948:cluster/fargate-${EnvironmentName}'
+          EcsParameters:
+            LaunchType: FARGATE
+            NetworkConfiguration:
+              AwsVpcConfiguration:
+                AssignPublicIp: DISABLED
+                SecurityGroups:
+                  - sg-013ba8c102109773e
+                Subnets:
+                  - subnet-060126506e400d7cb
+                  - subnet-06144cb1fe1dbd38b
+                  - subnet-0a302591beab0099d
+            TaskCount: 1
+            TaskDefinitionArn: !Ref 'TaskDefinition'
+          Id: !Sub '${EnvironmentName}-fargate-my-terna-metering-ScheduledRule'
+          RoleArn: !GetAtt 'TaskRole.Arn'
+          Input: !Sub '{"containerOverrides": [{"name": "${EnvironmentName}-my-terna-metering", "environment": [{"name":"ENVIRONMENT", "value": "${EnvironmentName}"}, {"name":"SERVICE_NAME", "value": "${ServiceName}"}, {"name":"AWS_DEFAULT_REGION", "value": "eu-west-1"}, {"name":"DESTINATION_BUCKET",  "value": "ego-metering-tso-863181445948-eu-west-1"}, {"name":"DOWNLOAD_PATH",   "value": "/tmp/measures"}, {"name":"QUEUE_NAME",   "value": ""}, {"name":"HISTORICAL",   "value": "True"}, {"name":"COMPANIES",   "value": "EGO DATA"}, {"name":"RELEVANT",   "value": "False"}       ]     }   ] }'
+    Type: AWS::Events::Rule
+  ScheduledRuleHistoricEgoEnergyRelevant:
+    DependsOn:
+      - TaskRole
+      - TaskDefinition
+    Properties:
+      Description: !Sub 'ScheduledRule for task my-terna-metering in Fargate ${EnvironmentName}
+        environment'
+      ScheduleExpression: cron(0 15 * * ? *)
+      State: !If [EnableProdScheduleRule, ENABLED, DISABLED]
+      Targets:
+        - Arn: !Sub 'arn:aws:ecs:eu-west-1:863181445948:cluster/fargate-${EnvironmentName}'
+          EcsParameters:
+            LaunchType: FARGATE
+            NetworkConfiguration:
+              AwsVpcConfiguration:
+                AssignPublicIp: DISABLED
+                SecurityGroups:
+                  - sg-013ba8c102109773e
+                Subnets:
+                  - subnet-060126506e400d7cb
+                  - subnet-06144cb1fe1dbd38b
+                  - subnet-0a302591beab0099d
+            TaskCount: 1
+            TaskDefinitionArn: !Ref 'TaskDefinition'
+          Id: !Sub '${EnvironmentName}-fargate-my-terna-metering-ScheduledRule'
+          RoleArn: !GetAtt 'TaskRole.Arn'
+          Input: !Sub '{"containerOverrides": [{"name": "${EnvironmentName}-my-terna-metering", "environment": [{"name":"ENVIRONMENT", "value": "${EnvironmentName}"}, {"name":"SERVICE_NAME", "value": "${ServiceName}"}, {"name":"AWS_DEFAULT_REGION", "value": "eu-west-1"}, {"name":"DESTINATION_BUCKET",  "value": "ego-metering-tso-863181445948-eu-west-1"}, {"name":"DOWNLOAD_PATH",   "value": "/tmp/measures"}, {"name":"QUEUE_NAME",   "value": ""}, {"name":"HISTORICAL",   "value": "True"}, {"name":"COMPANIES",   "value": "EGO Energy"}, {"name":"RELEVANT",   "value": "True"}       ]     }   ] }'
+    Type: AWS::Events::Rule
+  ScheduledRuleHistoricEgoEnergyUnrelevant:
+    DependsOn:
+      - TaskRole
+      - TaskDefinition
+    Properties:
+      Description: !Sub 'ScheduledRule for task my-terna-metering in Fargate ${EnvironmentName}
+        environment'
+      ScheduleExpression: cron(0 13 * * ? *)
+      State: !If [EnableProdScheduleRule, ENABLED, DISABLED]
+      Targets:
+        - Arn: !Sub 'arn:aws:ecs:eu-west-1:863181445948:cluster/fargate-${EnvironmentName}'
+          EcsParameters:
+            LaunchType: FARGATE
+            NetworkConfiguration:
+              AwsVpcConfiguration:
+                AssignPublicIp: DISABLED
+                SecurityGroups:
+                  - sg-013ba8c102109773e
+                Subnets:
+                  - subnet-060126506e400d7cb
+                  - subnet-06144cb1fe1dbd38b
+                  - subnet-0a302591beab0099d
+            TaskCount: 1
+            TaskDefinitionArn: !Ref 'TaskDefinition'
+          Id: !Sub '${EnvironmentName}-fargate-my-terna-metering-ScheduledRule'
+          RoleArn: !GetAtt 'TaskRole.Arn'
+          Input: !Sub '{"containerOverrides": [{"name": "${EnvironmentName}-my-terna-metering", "environment": [{"name":"ENVIRONMENT", "value": "${EnvironmentName}"}, {"name":"SERVICE_NAME", "value": "${ServiceName}"}, {"name":"AWS_DEFAULT_REGION", "value": "eu-west-1"}, {"name":"DESTINATION_BUCKET",  "value": "ego-metering-tso-863181445948-eu-west-1"}, {"name":"DOWNLOAD_PATH",   "value": "/tmp/measures"}, {"name":"QUEUE_NAME",   "value": ""}, {"name":"HISTORICAL",   "value": "True"}, {"name":"COMPANIES",   "value": "EGO Energy"}, {"name":"RELEVANT",   "value": "False"}       ]     }   ] }'
+    Type: AWS::Events::Rule
+
+  TaskDefinition:
+    DependsOn:
+      - TaskRole
+      - CloudWatchLogsGroup
+    Properties:
+      ContainerDefinitions:
+        - Essential: true
+          Image: !Sub ${AccountId}.dkr.ecr.${DefaultRegion}.amazonaws.com/${ImageName}:${ImageTag}
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref 'CloudWatchLogsGroup'
+              awslogs-region: !Ref 'AWS::Region'
+              awslogs-stream-prefix: Fargate
+          Name: !Sub ${EnvironmentName}-my-terna-metering
+          Environment:
+            - Name: ENVIRONMENT
+              Value: !Sub ${EnvironmentName}
+            - Name: SERVICE_NAME
+              Value: !Sub ${ServiceName}
+            - Name: AWS_DEFAULT_REGION
+              Value: !Sub ${DefaultRegion}
+            - Name: DESTINATION_BUCKET
+              Value: !Sub ${DestinationBucket}
+            - Name: DOWNLOAD_PATH
+              Value: !Sub ${DownloadPath}
+            - Name: HISTORICAL
+              Value: False
+            - Name: RELEVANT
+              Value: False
+      Cpu: '2048'
+      Memory: '4096'
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      Family: !Sub ${EnvironmentName}-fargate-my-terna-metering
+      TaskRoleArn: !GetAtt 'TaskRole.Arn'
+      ExecutionRoleArn: !Sub arn:aws:iam::${AccountId}:role/ecsTaskExecutionRole
+    Type: AWS::ECS::TaskDefinition
+
+  TaskRole:
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action:
+              - sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service:
+                - ecs-tasks.amazonaws.com
+          - Action:
+              - sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+          - Action:
+              - sts:AssumeRole
+            Effect: Allow
+            Principal:
+                Service:
+                  - events.amazonaws.com
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceEventsRole
+      RoleName: !Sub ${EnvironmentName}-Fargate-my-terna-metering-Role
+    Type: AWS::IAM::Role
+
+  TaskPolicy:
+    Type: 'AWS::IAM::Policy'
+    Properties:
+      PolicyName: !Sub ${EnvironmentName}--Fargate-${ServiceName}-Policy
+      PolicyDocument:
+        Statement:
+          - Action: ssm:GetParameters
+            Effect: Allow
+            Resource: !Sub 'arn:aws:ssm:${DefaultRegion}:${AccountId}:parameter/*'
+          - Action:
+              - s3:GetObject
+              - s3:PutObject
+            Effect: Allow
+            Resource:
+              #- !Sub "arn:aws:s3:::${DestinationBucket}/*"
+              - !Sub "arn:aws:s3:::ego-metering-tso-863181445948-eu-west-1/*"
+              - !Sub "arn:aws:s3:::ego-fabio-123/*"
+              - !Sub "arn:aws:s3:::ego-my-terna-metering/*"
+          - Action:
+              - s3:GetBucketLocation
+              - s3:ListBucket
+            Effect: Allow
+            Resource: !Sub 'arn:aws:s3:::${DestinationBucket}'
+      Roles:
+        - Ref: TaskRole
